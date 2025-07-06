@@ -12,15 +12,34 @@ import {
   FiEye,
   FiKey,
   FiHeart,
+  FiChevronLeft,
+  FiChevronRight,
+  FiList,
+  FiUnlock,
 } from "react-icons/fi";
 
 export default function Graveletters() {
-  const [activeTab, setActiveTab] = useState("write");
+  const [activeTab, setActiveTab] = useState("read");
   const [letters, setLetters] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchType, setSearchType] = useState("both");
   const [loading, setLoading] = useState(false);
+
+  // Pagination states
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 0,
+    total: 0,
+    hasMore: false,
+    limit: 10,
+  });
+
+  // Letter selection states
+  const [privateLettersList, setPrivateLettersList] = useState([]);
+  const [encryptedLettersList, setEncryptedLettersList] = useState([]);
+  const [selectedLetter, setSelectedLetter] = useState(null);
+  const [showLetterSelection, setShowLetterSelection] = useState(false);
 
   // Form states
   const [letterForm, setLetterForm] = useState({
@@ -58,12 +77,20 @@ export default function Graveletters() {
 
   // Load letters on component mount
   useEffect(() => {
-    loadLetters();
-  }, []);
+    if (activeTab === "read") {
+      loadLetters(1);
+    }
+  }, [activeTab]);
 
-  const loadLetters = async () => {
+  const loadLetters = async (page = 1, searchParams = {}) => {
     try {
-      const response = await fetch("/api/letters");
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: pagination.limit.toString(),
+        ...searchParams,
+      });
+
+      const response = await fetch(`/api/letters?${params}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -71,8 +98,18 @@ export default function Graveletters() {
 
       const data = await response.json();
       console.log("Loaded letters:", data);
+
       setLetters(data.letters || []);
       setSearchResults(data.letters || []);
+      setPagination(
+        data.pagination || {
+          currentPage: 1,
+          totalPages: 0,
+          total: 0,
+          hasMore: false,
+          limit: 10,
+        }
+      );
     } catch (error) {
       console.error("Error loading letters:", error);
       const fallbackLetters = [
@@ -89,6 +126,18 @@ export default function Graveletters() {
       setLetters(fallbackLetters);
       setSearchResults(fallbackLetters);
     }
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > pagination.totalPages) return;
+
+    const searchParams = {};
+    if (searchTerm) {
+      searchParams.search = searchTerm;
+      searchParams.searchType = searchType;
+    }
+
+    loadLetters(newPage, searchParams);
   };
 
   const handleSubmitLetter = async () => {
@@ -143,7 +192,7 @@ export default function Graveletters() {
         });
 
         if (letterForm.type !== "private" && letterForm.type !== "encrypted") {
-          loadLetters();
+          loadLetters(1);
         }
       } else {
         throw new Error("Failed to send letter");
@@ -156,22 +205,25 @@ export default function Graveletters() {
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (page = 1) => {
     try {
       const params = new URLSearchParams({
         search: searchTerm,
         searchType: searchType,
+        page: page.toString(),
+        limit: pagination.limit.toString(),
       });
 
       const response = await fetch(`/api/letters?${params}`);
       const data = await response.json();
       setSearchResults(data.letters || []);
+      setPagination(data.pagination || pagination);
     } catch (error) {
       console.error("Error searching letters:", error);
     }
   };
 
-  const handlePrivateLetterView = async () => {
+  const handlePrivateLetterSearch = async () => {
     try {
       const params = new URLSearchParams({
         type: "private",
@@ -179,6 +231,48 @@ export default function Graveletters() {
         toName: privateForm.toName,
         fromBirthday: privateForm.fromBirthday,
         toBirthday: privateForm.toBirthday,
+        action: "list",
+        page: "1",
+        limit: "50",
+      });
+
+      const response = await fetch(`/api/letters?${params}`);
+      const data = await response.json();
+
+      if (data.letters && data.letters.length > 0) {
+        if (data.letters.length === 1) {
+          // If only one letter, show it directly
+          setSelectedLetter(data.letters[0]);
+          setShowLetterSelection(false);
+          await handlePrivateLetterView(data.letters[0].id);
+        } else {
+          // Multiple letters found, show selection
+          setPrivateLettersList(data.letters);
+          setShowLetterSelection(true);
+          setSearchResults([]);
+        }
+      } else {
+        setPrivateLettersList([]);
+        setShowLetterSelection(false);
+        setSearchResults([]);
+        alert("No letter found with those details.");
+      }
+    } catch (error) {
+      console.error("Error finding private letters:", error);
+      alert("Error searching for private letters.");
+    }
+  };
+
+  const handlePrivateLetterView = async (letterId) => {
+    try {
+      const params = new URLSearchParams({
+        type: "private",
+        fromName: privateForm.fromName,
+        toName: privateForm.toName,
+        fromBirthday: privateForm.fromBirthday,
+        toBirthday: privateForm.toBirthday,
+        action: "select",
+        letterId: letterId.toString(),
       });
 
       const response = await fetch(`/api/letters?${params}`);
@@ -186,14 +280,14 @@ export default function Graveletters() {
 
       if (data.letters && data.letters.length > 0) {
         setSearchResults(data.letters);
-        alert("Private letter found!");
+        setShowLetterSelection(false);
+        alert("Private letter loaded!");
       } else {
-        setSearchResults([]);
-        alert("No letter found with those details.");
+        alert("Error loading the selected letter.");
       }
     } catch (error) {
-      console.error("Error finding private letter:", error);
-      alert("Error searching for private letter.");
+      console.error("Error loading private letter:", error);
+      alert("Error loading private letter.");
     }
   };
 
@@ -205,32 +299,30 @@ export default function Graveletters() {
         toName: encryptedForm.toName,
         fromBirthday: encryptedForm.fromBirthday,
         toBirthday: encryptedForm.toBirthday,
+        action: "list",
+        page: "1",
+        limit: "50",
       });
 
       const response = await fetch(`/api/letters?${params}`);
       const data = await response.json();
 
-      if (
-        data.letters &&
-        data.letters.length > 0 &&
-        data.letters[0].security_question
-      ) {
-        setEncryptedForm({
-          ...encryptedForm,
-          securityQuestion: data.letters[0].security_question,
-        });
+      if (data.letters && data.letters.length > 0) {
+        setEncryptedLettersList(data.letters);
         setShowSecurityQuestion(true);
+        setSearchResults([]);
       } else {
-        alert("No encrypted letter found with those details.");
+        alert("No encrypted letters found with those details.");
         setShowSecurityQuestion(false);
+        setEncryptedLettersList([]);
       }
     } catch (error) {
-      console.error("Error finding encrypted letter:", error);
-      alert("Error searching for encrypted letter.");
+      console.error("Error finding encrypted letters:", error);
+      alert("Error searching for encrypted letters.");
     }
   };
 
-  const handleEncryptedLetterStep2 = async () => {
+  const handleEncryptedLetterStep2 = async (letterId, securityAnswer) => {
     try {
       const params = new URLSearchParams({
         type: "encrypted",
@@ -238,7 +330,8 @@ export default function Graveletters() {
         toName: encryptedForm.toName,
         fromBirthday: encryptedForm.fromBirthday,
         toBirthday: encryptedForm.toBirthday,
-        securityAnswer: encryptedForm.securityAnswer,
+        letterId: letterId.toString(),
+        securityAnswer: securityAnswer,
       });
 
       const response = await fetch(`/api/letters?${params}`);
@@ -246,6 +339,8 @@ export default function Graveletters() {
 
       if (data.letters && data.letters.length > 0) {
         setSearchResults(data.letters);
+        setShowSecurityQuestion(false);
+        setEncryptedLettersList([]);
         alert("Encrypted letter unlocked!");
       } else {
         alert("Incorrect answer. Please try again.");
@@ -262,6 +357,184 @@ export default function Graveletters() {
       month: "long",
       day: "numeric",
     });
+  };
+
+  const PaginationControls = ({ onPageChange, pagination }) => {
+    if (pagination.totalPages <= 1) return null;
+
+    const { currentPage, totalPages } = pagination;
+    const pages = [];
+
+    // Calculate which pages to show
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div style={styles.paginationContainer}>
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          style={{
+            ...styles.paginationButton,
+            opacity: currentPage === 1 ? 0.5 : 1,
+            cursor: currentPage === 1 ? "not-allowed" : "pointer",
+          }}
+        >
+          <FiChevronLeft size={16} />
+          Previous
+        </button>
+
+        <div style={styles.pageNumbers}>
+          {startPage > 1 && (
+            <>
+              <button onClick={() => onPageChange(1)} style={styles.pageButton}>
+                1
+              </button>
+              {startPage > 2 && <span style={styles.ellipsis}>...</span>}
+            </>
+          )}
+
+          {pages.map((page) => (
+            <button
+              key={page}
+              onClick={() => onPageChange(page)}
+              style={{
+                ...styles.pageButton,
+                ...(page === currentPage ? styles.pageButtonActive : {}),
+              }}
+            >
+              {page}
+            </button>
+          ))}
+
+          {endPage < totalPages && (
+            <>
+              {endPage < totalPages - 1 && (
+                <span style={styles.ellipsis}>...</span>
+              )}
+              <button
+                onClick={() => onPageChange(totalPages)}
+                style={styles.pageButton}
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          style={{
+            ...styles.paginationButton,
+            opacity: currentPage === totalPages ? 0.5 : 1,
+            cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+          }}
+        >
+          Next
+          <FiChevronRight size={16} />
+        </button>
+      </div>
+    );
+  };
+
+  const LetterSelectionList = ({ letters, type, onSelect, onUnlock }) => {
+    const [securityAnswers, setSecurityAnswers] = useState({});
+
+    const handleSecurityAnswerChange = (letterId, value) => {
+      setSecurityAnswers((prev) => ({
+        ...prev,
+        [letterId]: value,
+      }));
+    };
+
+    const handleUnlock = (letterId) => {
+      const answer = securityAnswers[letterId] || "";
+      if (answer.trim()) {
+        onUnlock(letterId, answer.trim());
+      } else {
+        alert("Please enter an answer before unlocking.");
+      }
+    };
+
+    return (
+      <div style={styles.letterSelectionContainer}>
+        <h3 style={styles.selectionTitle}>
+          {type === "private"
+            ? "Select Private Letter"
+            : "Select Encrypted Letter to Unlock"}
+        </h3>
+        <p style={styles.selectionSubtitle}>
+          Multiple letters found. Choose one to{" "}
+          {type === "private" ? "view" : "unlock"}:
+        </p>
+
+        {letters.map((letter, index) => (
+          <div key={letter.id} style={styles.letterSelectionCard}>
+            <div style={styles.letterSelectionHeader}>
+              <span style={styles.letterNumber}>Letter #{index + 1}</span>
+              <span style={styles.letterDate}>
+                Sent: {formatDate(letter.created_at)}
+              </span>
+            </div>
+
+            {type === "private" && (
+              <div style={styles.letterPreview}>
+                <strong>Preview:</strong> {letter.letter_preview}
+              </div>
+            )}
+
+            {type === "encrypted" && (
+              <div style={styles.encryptedLetterInfo}>
+                <div style={styles.securityQuestion}>
+                  <strong>Security Question:</strong> {letter.security_question}
+                </div>
+                <div style={styles.contentHint}>
+                  <strong>Content hint:</strong> {letter.content_hint}...
+                </div>
+                <div style={styles.unlockSection}>
+                  <input
+                    type="text"
+                    placeholder="Enter your answer (lowercase)"
+                    value={securityAnswers[letter.id] || ""}
+                    onChange={(e) =>
+                      handleSecurityAnswerChange(letter.id, e.target.value)
+                    }
+                    style={styles.securityAnswerInput}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        handleUnlock(letter.id);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => handleUnlock(letter.id)}
+                    style={styles.unlockButton}
+                  >
+                    <FiUnlock size={16} />
+                    Unlock
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {type === "private" && (
+              <button
+                onClick={() => onSelect(letter.id)}
+                style={styles.selectButton}
+              >
+                <FiEye size={16} />
+                View This Letter
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const styles = {
@@ -294,6 +567,22 @@ export default function Graveletters() {
       alignItems: "center",
       justifyContent: "center",
       gap: "8px",
+    },
+    titleTam: {
+      fontSize: "clamp(1.2rem, 2vw, 0.8rem)",
+      fontWeight: "bold",
+      margin: "0",
+      letterSpacing: "2px",
+      textShadow: "2px 2px 0 #cccccc",
+      fontFamily: "Libertinus Mono",
+      fontWeight: 400,
+      fontStyle: "normal",
+      display: "flex",
+      textAlign: "center",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px",
+      paddingBottom: 30,
     },
     subtitle: {
       margin: "10px 0 0 0",
@@ -529,6 +818,176 @@ export default function Graveletters() {
       `,
       backgroundSize: "20px 20px, 40px 40px",
     },
+    // Pagination styles
+    paginationContainer: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "10px",
+      margin: "30px 0",
+      flexWrap: "wrap",
+    },
+    paginationButton: {
+      padding: "10px 15px",
+      backgroundColor: "#000000",
+      color: "#ffffff",
+      border: "2px solid #000000",
+      cursor: "pointer",
+      fontSize: "0.9rem",
+      fontWeight: "bold",
+      textTransform: "uppercase",
+      boxShadow: "3px 3px 0 #333333",
+      transition: "all 0.2s ease",
+      display: "flex",
+      alignItems: "center",
+      gap: "5px",
+    },
+    pageNumbers: {
+      display: "flex",
+      alignItems: "center",
+      gap: "5px",
+    },
+    pageButton: {
+      padding: "8px 12px",
+      backgroundColor: "#ffffff",
+      color: "#000000",
+      border: "2px solid #000000",
+      cursor: "pointer",
+      fontSize: "0.9rem",
+      fontWeight: "bold",
+      boxShadow: "2px 2px 0 #000000",
+      transition: "all 0.2s ease",
+      minWidth: "40px",
+    },
+    pageButtonActive: {
+      backgroundColor: "#000000",
+      color: "#ffffff",
+      boxShadow: "2px 2px 0 #333333",
+    },
+    ellipsis: {
+      padding: "0 5px",
+      fontSize: "1.2rem",
+      fontWeight: "bold",
+    },
+    // Letter selection styles
+    letterSelectionContainer: {
+      border: "3px solid #000000",
+      padding: "30px",
+      background:
+        "linear-gradient(145deg, #ffffff 0%, #fafafa 50%, #f5f5f5 100%)",
+      margin: "20px 0",
+      boxShadow: "8px 8px 0 #000000",
+    },
+    selectionTitle: {
+      fontSize: "clamp(1.2rem, 2vw, 1.5rem)",
+      fontFamily: "Libertinus Mono",
+      fontWeight: 400,
+      marginBottom: "10px",
+      textAlign: "center",
+    },
+    selectionSubtitle: {
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      fontStyle: "italic",
+      marginBottom: "20px",
+      textAlign: "center",
+      color: "#666",
+    },
+    letterSelectionCard: {
+      border: "2px solid #000000",
+      padding: "20px",
+      marginBottom: "15px",
+      background: "linear-gradient(145deg, #ffffff 0%, #f9f9f9 100%)",
+      boxShadow: "4px 4px 0 #000000",
+    },
+    letterSelectionHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "15px",
+      fontSize: "clamp(0.8rem, 1.2vw, 0.9rem)",
+      fontWeight: "bold",
+    },
+    letterNumber: {
+      color: "#000000",
+      fontSize: "1rem",
+    },
+    letterDate: {
+      color: "#666",
+      fontSize: "0.9rem",
+    },
+    letterPreview: {
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      lineHeight: "1.6",
+      marginBottom: "15px",
+      fontFamily: "serif",
+      color: "#333",
+    },
+    encryptedLetterInfo: {
+      marginBottom: "15px",
+    },
+    securityQuestion: {
+      marginBottom: "10px",
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      padding: "10px",
+      background: "linear-gradient(145deg, #f0f0f0 0%, #ffffff 100%)",
+      border: "2px solid #ccc",
+      borderRadius: "5px",
+    },
+    contentHint: {
+      marginBottom: "15px",
+      fontSize: "clamp(0.8rem, 1.2vw, 0.9rem)",
+      color: "#666",
+      fontStyle: "italic",
+    },
+    unlockSection: {
+      display: "flex",
+      gap: "10px",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    securityAnswerInput: {
+      flex: "1",
+      padding: "8px 12px",
+      border: "2px solid #000000",
+      backgroundColor: "#ffffff",
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      boxSizing: "border-box",
+      boxShadow: "2px 2px 0 #000000",
+      minWidth: "200px",
+    },
+    unlockButton: {
+      padding: "8px 15px",
+      backgroundColor: "#000000",
+      color: "#ffffff",
+      border: "2px solid #000000",
+      cursor: "pointer",
+      fontSize: "0.9rem",
+      fontWeight: "bold",
+      textTransform: "uppercase",
+      boxShadow: "3px 3px 0 #333333",
+      transition: "all 0.2s ease",
+      display: "flex",
+      alignItems: "center",
+      gap: "5px",
+      whiteSpace: "nowrap",
+    },
+    selectButton: {
+      width: "100%",
+      padding: "12px",
+      backgroundColor: "#000000",
+      color: "#ffffff",
+      border: "2px solid #000000",
+      cursor: "pointer",
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      fontWeight: "bold",
+      textTransform: "uppercase",
+      boxShadow: "3px 3px 0 #333333",
+      transition: "all 0.2s ease",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px",
+    },
   };
 
   return (
@@ -555,7 +1014,6 @@ export default function Graveletters() {
       <div style={styles.container}>
         <header style={styles.header}>
           <h1 style={styles.title}>
-            {" "}
             <img
               width="100"
               height="100"
@@ -569,8 +1027,8 @@ export default function Graveletters() {
 
         <nav style={styles.nav}>
           {[
-            { key: "write", label: "Write Letter.", icon: FiEdit3 },
             { key: "read", label: "Read Letters", icon: FiBook },
+            { key: "write", label: "Write Letter.", icon: FiEdit3 },
             { key: "private", label: "Private Letters", icon: FiLock },
             { key: "encrypted", label: "Encrypted Letters", icon: FiShield },
             { key: "host", label: "Self Host > Open Source", icon: FiGithub },
@@ -629,7 +1087,13 @@ export default function Graveletters() {
               >
                 Write a Letter.
               </h2>
-
+              <p style={styles.titleTam} s>
+                கடிதமெழுத கற்றுக்கொள் வித,விதமாய் பொய் சொல்.
+              </p>
+              <p style={styles.titleTam} s>
+                Imagine sending messages to your ex - even after she blocks you
+                everywhere, even in Google Pay.
+              </p>
               <div style={styles.formContainer}>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Letter Type:</label>
@@ -900,6 +1364,11 @@ export default function Graveletters() {
                 Read Letters
               </h2>
 
+              <p style={styles.titleTam}>
+                The possibility of she reading your letter is 0.01%, but 200%
+                probability that her husband will.
+              </p>
+
               <div style={styles.searchContainer}>
                 <div style={styles.searchRow}>
                   <select
@@ -946,7 +1415,7 @@ export default function Graveletters() {
                     }}
                   />
                   <button
-                    onClick={handleSearch}
+                    onClick={() => handleSearch(1)}
                     style={{
                       ...styles.button,
                       width: "auto",
@@ -980,26 +1449,33 @@ export default function Graveletters() {
                     No letters found.
                   </p>
                 ) : (
-                  searchResults.map((letter) => (
-                    <div key={letter.id} style={styles.letterCard}>
-                      <div style={styles.letterHeader}>
-                        <div>
-                          <strong>From:</strong> {letter.from_name}
+                  <>
+                    {searchResults.map((letter) => (
+                      <div key={letter.id} style={styles.letterCard}>
+                        <div style={styles.letterHeader}>
+                          <div>
+                            <strong>From:</strong> {letter.from_name}
+                          </div>
+                          <div>
+                            <strong>To:</strong> {letter.to_name}
+                          </div>
                         </div>
-                        <div>
-                          <strong>To:</strong> {letter.to_name}
+
+                        <div style={styles.letterContent}>
+                          {letter.letter_content}
+                        </div>
+
+                        <div style={styles.letterFooter}>
+                          Sent on {formatDate(letter.created_at)}
                         </div>
                       </div>
+                    ))}
 
-                      <div style={styles.letterContent}>
-                        {letter.letter_content}
-                      </div>
-
-                      <div style={styles.letterFooter}>
-                        Sent on {formatDate(letter.created_at)}
-                      </div>
-                    </div>
-                  ))
+                    <PaginationControls
+                      onPageChange={handlePageChange}
+                      pagination={pagination}
+                    />
+                  </>
                 )}
               </div>
             </div>
@@ -1029,7 +1505,7 @@ export default function Graveletters() {
                     fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
                   }}
                 >
-                  Enter the exact names and birthdays to view a private letter.
+                  Enter the exact names and birthdays to view private letters.
                 </p>
 
                 <div style={styles.inputGroup}>
@@ -1121,33 +1597,44 @@ export default function Graveletters() {
                   />
                 </div>
 
-                <button onClick={handlePrivateLetterView} style={styles.button}>
-                  <FiEye size={16} />
-                  View Private Letter
+                <button
+                  onClick={handlePrivateLetterSearch}
+                  style={styles.button}
+                >
+                  <FiList size={16} />
+                  Find Private Letters
                 </button>
+              </div>
 
-                {searchResults.length > 0 &&
-                  searchResults[0].letter_type === "private" && (
-                    <div style={{ ...styles.letterCard, marginTop: "30px" }}>
-                      <div style={styles.letterHeader}>
-                        <div>
-                          <strong>From:</strong> {searchResults[0].from_name}
-                        </div>
-                        <div>
-                          <strong>To:</strong> {searchResults[0].to_name}
-                        </div>
+              {showLetterSelection && privateLettersList.length > 0 && (
+                <LetterSelectionList
+                  letters={privateLettersList}
+                  type="private"
+                  onSelect={handlePrivateLetterView}
+                />
+              )}
+
+              {searchResults.length > 0 &&
+                searchResults[0].letter_type === "private" && (
+                  <div style={{ ...styles.letterCard, marginTop: "30px" }}>
+                    <div style={styles.letterHeader}>
+                      <div>
+                        <strong>From:</strong> {searchResults[0].from_name}
                       </div>
-
-                      <div style={styles.letterContent}>
-                        {searchResults[0].letter_content}
-                      </div>
-
-                      <div style={styles.letterFooter}>
-                        Sent on {formatDate(searchResults[0].created_at)}
+                      <div>
+                        <strong>To:</strong> {searchResults[0].to_name}
                       </div>
                     </div>
-                  )}
-              </div>
+
+                    <div style={styles.letterContent}>
+                      {searchResults[0].letter_content}
+                    </div>
+
+                    <div style={styles.letterFooter}>
+                      Sent on {formatDate(searchResults[0].created_at)}
+                    </div>
+                  </div>
+                )}
             </div>
           )}
 
@@ -1175,8 +1662,8 @@ export default function Graveletters() {
                     fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
                   }}
                 >
-                  Enter the exact names and birthdays, then answer the security
-                  question to view an encrypted letter.
+                  Enter the exact names and birthdays, then select and unlock an
+                  encrypted letter.
                 </p>
 
                 <div style={styles.inputGroup}>
@@ -1277,74 +1764,40 @@ export default function Graveletters() {
                     style={styles.button}
                   >
                     <FiSearch size={16} />
-                    Find Security Question
+                    Find Encrypted Letters
                   </button>
                 )}
-
-                {showSecurityQuestion && (
-                  <>
-                    <div
-                      style={{
-                        ...styles.inputGroup,
-                        ...styles.securityQuestionBox,
-                      }}
-                    >
-                      <strong>Security Question:</strong>
-                      <p style={{ margin: "10px 0 0 0", fontStyle: "italic" }}>
-                        {encryptedForm.securityQuestion}
-                      </p>
-                    </div>
-
-                    <div style={styles.inputGroup}>
-                      <label style={styles.label}>
-                        Your Answer (lowercase):
-                      </label>
-                      <input
-                        type="text"
-                        value={encryptedForm.securityAnswer}
-                        onChange={(e) =>
-                          setEncryptedForm({
-                            ...encryptedForm,
-                            securityAnswer: e.target.value,
-                          })
-                        }
-                        style={styles.input}
-                        placeholder="Enter your answer in lowercase"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleEncryptedLetterStep2}
-                      style={styles.button}
-                    >
-                      <FiKey size={16} />
-                      Unlock Letter
-                    </button>
-                  </>
-                )}
-
-                {searchResults.length > 0 &&
-                  searchResults[0].letter_type === "encrypted" && (
-                    <div style={{ ...styles.letterCard, marginTop: "30px" }}>
-                      <div style={styles.letterHeader}>
-                        <div>
-                          <strong>From:</strong> {searchResults[0].from_name}
-                        </div>
-                        <div>
-                          <strong>To:</strong> {searchResults[0].to_name}
-                        </div>
-                      </div>
-
-                      <div style={styles.letterContent}>
-                        {searchResults[0].letter_content}
-                      </div>
-
-                      <div style={styles.letterFooter}>
-                        Sent on {formatDate(searchResults[0].created_at)}
-                      </div>
-                    </div>
-                  )}
               </div>
+
+              {showSecurityQuestion && encryptedLettersList.length > 0 && (
+                <LetterSelectionList
+                  letters={encryptedLettersList}
+                  type="encrypted"
+                  onUnlock={handleEncryptedLetterStep2}
+                />
+              )}
+
+              {searchResults.length > 0 &&
+                searchResults[0].letter_type === "encrypted" && (
+                  <div style={{ ...styles.letterCard, marginTop: "30px" }}>
+                    <div style={styles.letterHeader}>
+                      <div>
+                        <strong>From:</strong> {searchResults[0].from_name}
+                      </div>
+                      <div>
+                        <strong>To:</strong> {searchResults[0].to_name}
+                      </div>
+                    </div>
+
+                    <div style={styles.letterContent}>
+                      {searchResults[0].letter_content}
+                    </div>
+
+                    <div style={styles.letterFooter}>
+                      Sent on {formatDate(searchResults[0].created_at)}
+                    </div>
+                  </div>
+                )}
             </div>
           )}
         </main>
@@ -1363,7 +1816,17 @@ export default function Graveletters() {
             Letters That Last Forever.
           </h3>
           <img
-            src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3Z2OXpwZ2ZwdXR2ODMxNG1yems2cnhtM2N5aTBzd3hnMHh3NWozNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3vR4CdLInXOhr3rO/giphy.gif"
+            src={
+              activeTab === "read"
+                ? "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3Z2OXpwZ2ZwdXR2ODMxNG1yems2cnhtM2N5aTBzd3hnMHh3NWozNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3vR4CdLInXOhr3rO/giphy.gif"
+                : activeTab === "write"
+                ? "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ2ozdmZ0c2FjODBqc2g1OG1panNsMTUxdTdrcWk1ZmI1OGQ4cnViciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/O8YQGdQapcRvW/giphy.gif"
+                : activeTab === "private"
+                ? "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExaXY1a2dwbTU2dmdhbHFqbGdkeDFwNnFhZTcwcGJib2R2YmhqcWJ5ZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/9xuPhLg78riXC/giphy.gif"
+                : activeTab === "encrypted"
+                ? "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExeTNpcWw2bjZnZjA2ZXdtazlmaHE4YzhoZmY2ODZrazd4cW0yM2lzaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cPNXOm7ln8HwK7UcbV/giphy.gif"
+                : "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3Z2OXpwZ2ZwdXR2ODMxNG1yems2cnhtM2N5aTBzd3hnMHh3NWozNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3vR4CdLInXOhr3rO/giphy.gif"
+            }
             alt="Interstellar - Messages across time and space"
             style={styles.gif}
           />

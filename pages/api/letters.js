@@ -95,59 +95,138 @@ export default async function handler(req, res) {
         fromBirthday,
         toBirthday,
         securityAnswer,
+        letterId,
+        page = 1,
+        limit = 10,
+        action = "list", // 'list' or 'select'
       } = req.query;
 
+      const offset = (parseInt(page) - 1) * parseInt(limit);
       let query;
+      let countQuery;
       let values = [];
+      let countValues = [];
 
       if (type === "private") {
         if (!fromName || !toName || !fromBirthday || !toBirthday) {
-          return res.status(200).json({ letters: [] });
+          return res
+            .status(200)
+            .json({ letters: [], total: 0, hasMore: false });
         }
 
-        query = `
-          SELECT id, from_name, to_name, letter_content, letter_type, show_from_name, show_to_name, created_at
-          FROM letters 
-          WHERE letter_type = 'private' 
-          AND from_name = ? 
-          AND to_name = ? 
-          AND from_birthday = ? 
-          AND to_birthday = ?
-          ORDER BY created_at DESC
-        `;
-        values = [fromName, toName, fromBirthday, toBirthday];
-      } else if (type === "encrypted") {
-        if (!fromName || !toName || !fromBirthday || !toBirthday) {
-          return res.status(200).json({ letters: [] });
-        }
-
-        if (!securityAnswer) {
-          // Return just the security question
-          query = `
-            SELECT id, security_question
+        if (action === "list") {
+          // First, get count of matching letters
+          countQuery = `
+            SELECT COUNT(*) as total
             FROM letters 
-            WHERE letter_type = 'encrypted' 
+            WHERE letter_type = 'private' 
             AND from_name = ? 
             AND to_name = ? 
             AND from_birthday = ? 
             AND to_birthday = ?
-            ORDER BY created_at DESC LIMIT 1
           `;
-          values = [fromName, toName, fromBirthday, toBirthday];
-        } else {
-          // Verify answer and return letter if correct
+          countValues = [fromName, toName, fromBirthday, toBirthday];
+
+          // Get the list with preview (first 100 chars of content)
           query = `
-            SELECT id, from_name, to_name, letter_content, letter_type, show_from_name, show_to_name, created_at
+            SELECT id, from_name, to_name, 
+                   SUBSTRING(letter_content, 1, 100) as content_preview,
+                   CASE 
+                     WHEN LENGTH(letter_content) > 100 THEN CONCAT(SUBSTRING(letter_content, 1, 100), '...')
+                     ELSE letter_content
+                   END as letter_preview,
+                   created_at
             FROM letters 
-            WHERE letter_type = 'encrypted' 
+            WHERE letter_type = 'private' 
+            AND from_name = ? 
+            AND to_name = ? 
+            AND from_birthday = ? 
+            AND to_birthday = ?
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+          `;
+          values = [
+            fromName,
+            toName,
+            fromBirthday,
+            toBirthday,
+            parseInt(limit),
+            offset,
+          ];
+        } else if (action === "select" && letterId) {
+          // Get specific letter by ID
+          query = `
+            SELECT id, from_name, to_name, letter_content, letter_type, 
+                   show_from_name, show_to_name, created_at
+            FROM letters 
+            WHERE id = ? 
+            AND letter_type = 'private' 
+            AND from_name = ? 
+            AND to_name = ? 
+            AND from_birthday = ? 
+            AND to_birthday = ?
+          `;
+          values = [letterId, fromName, toName, fromBirthday, toBirthday];
+        }
+      } else if (type === "encrypted") {
+        if (!fromName || !toName || !fromBirthday || !toBirthday) {
+          return res
+            .status(200)
+            .json({ letters: [], total: 0, hasMore: false });
+        }
+
+        if (!securityAnswer && !letterId) {
+          if (action === "list") {
+            // Get count of matching encrypted letters
+            countQuery = `
+              SELECT COUNT(*) as total
+              FROM letters 
+              WHERE letter_type = 'encrypted' 
+              AND from_name = ? 
+              AND to_name = ? 
+              AND from_birthday = ? 
+              AND to_birthday = ?
+            `;
+            countValues = [fromName, toName, fromBirthday, toBirthday];
+
+            // Return list of encrypted letters with security questions
+            query = `
+              SELECT id, security_question, created_at,
+                     SUBSTRING(letter_content, 1, 50) as content_hint
+              FROM letters 
+              WHERE letter_type = 'encrypted' 
+              AND from_name = ? 
+              AND to_name = ? 
+              AND from_birthday = ? 
+              AND to_birthday = ?
+              ORDER BY created_at DESC
+              LIMIT ? OFFSET ?
+            `;
+            values = [
+              fromName,
+              toName,
+              fromBirthday,
+              toBirthday,
+              parseInt(limit),
+              offset,
+            ];
+          }
+        } else if (letterId && securityAnswer) {
+          // Verify answer for specific letter and return full content
+          query = `
+            SELECT id, from_name, to_name, letter_content, letter_type, 
+                   show_from_name, show_to_name, created_at
+            FROM letters 
+            WHERE id = ? 
+            AND letter_type = 'encrypted' 
             AND from_name = ? 
             AND to_name = ? 
             AND from_birthday = ? 
             AND to_birthday = ?
             AND security_answer = ?
-            ORDER BY created_at DESC
           `;
           values = [
+            letterId,
             fromName,
             toName,
             fromBirthday,
@@ -156,46 +235,97 @@ export default async function handler(req, res) {
           ];
         }
       } else {
-        // Handle public and anonymous letters
+        // Handle public and anonymous letters with pagination
+        countQuery = `
+          SELECT COUNT(*) as total
+          FROM letters 
+          WHERE letter_type IN ('public', 'anonymous')
+        `;
+
         query = `
-          SELECT id, from_name, to_name, letter_content, letter_type, show_from_name, show_to_name, created_at
+          SELECT id, from_name, to_name, letter_content, letter_type, 
+                 show_from_name, show_to_name, created_at
           FROM letters 
           WHERE letter_type IN ('public', 'anonymous')
         `;
 
         if (search && search.trim()) {
-          switch (searchType) {
-            case "from":
-              query += " AND from_name LIKE ?";
-              values.push(`%${search}%`);
-              break;
-            case "to":
-              query += " AND to_name LIKE ?";
-              values.push(`%${search}%`);
-              break;
-            case "both":
-            default:
-              query += " AND (from_name LIKE ? OR to_name LIKE ?)";
-              values.push(`%${search}%`, `%${search}%`);
-              break;
+          const searchCondition = (() => {
+            switch (searchType) {
+              case "from":
+                return " AND from_name LIKE ?";
+              case "to":
+                return " AND to_name LIKE ?";
+              case "both":
+              default:
+                return " AND (from_name LIKE ? OR to_name LIKE ?)";
+            }
+          })();
+
+          countQuery += searchCondition;
+          query += searchCondition;
+
+          if (searchType === "both") {
+            countValues.push(`%${search}%`, `%${search}%`);
+            values.push(`%${search}%`, `%${search}%`);
+          } else {
+            countValues.push(`%${search}%`);
+            values.push(`%${search}%`);
           }
         }
 
-        query += " ORDER BY created_at DESC LIMIT 50";
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+        values.push(parseInt(limit), offset);
+      }
+
+      // Execute count query if needed
+      let total = 0;
+      if (countQuery) {
+        const [countResult] = await connection.execute(countQuery, countValues);
+        total = countResult[0].total;
       }
 
       console.log("Executing query:", query, "with values:", values);
       const [rows] = await connection.execute(query, values);
       console.log(`Found ${rows.length} letters`);
 
-      // Process letters for anonymous display
-      const processedLetters = rows.map((letter) => ({
-        ...letter,
-        from_name: letter.show_from_name ? letter.from_name : "Anonymous",
-        to_name: letter.show_to_name ? letter.to_name : "Anonymous",
-      }));
+      // Process letters for anonymous display (except for encrypted previews)
+      const processedLetters = rows.map((letter) => {
+        if (type === "encrypted" && !letter.letter_content) {
+          // For encrypted letter previews, don't modify names
+          return letter;
+        }
 
-      res.status(200).json({ letters: processedLetters });
+        return {
+          ...letter,
+          from_name:
+            letter.show_from_name !== undefined
+              ? letter.show_from_name
+                ? letter.from_name
+                : "Anonymous"
+              : letter.from_name,
+          to_name:
+            letter.show_to_name !== undefined
+              ? letter.show_to_name
+                ? letter.to_name
+                : "Anonymous"
+              : letter.to_name,
+        };
+      });
+
+      const hasMore = total > parseInt(page) * parseInt(limit);
+      const totalPages = Math.ceil(total / parseInt(limit));
+
+      res.status(200).json({
+        letters: processedLetters,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          total,
+          hasMore,
+          limit: parseInt(limit),
+        },
+      });
     } else {
       res.status(405).json({ error: "Method not allowed" });
     }
