@@ -5,3 +5,4 @@ coverage/
 .git
 package-lock.json
 .next/
+.env.local
