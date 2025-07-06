@@ -1,0 +1,35 @@
+-- GRAVELETTERS DATABASE - CLEAN SINGLE SETUP
+-- Copy ONLY this code below and paste in phpMyAdmin
+
+USE DATABASE_NAME;
+
+-- Remove existing table first
+DROP TABLE IF EXISTS letters;
+
+-- Create fresh table
+CREATE TABLE letters (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    from_name VARCHAR(255) NOT NULL,
+    to_name VARCHAR(255) NOT NULL,
+    letter_content TEXT NOT NULL,
+    letter_type ENUM('public', 'private', 'anonymous', 'encrypted') NOT NULL DEFAULT 'public',
+    from_birthday DATE NULL,
+    to_birthday DATE NULL,
+    security_question TEXT NULL,
+    security_answer VARCHAR(500) NULL,
+    show_from_name BOOLEAN DEFAULT TRUE,
+    show_to_name BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add sample letters
+INSERT INTO letters (from_name, to_name, letter_content, letter_type, show_from_name, show_to_name) VALUES
+('John', 'Sarah', 'Dear Sarah, I hope this letter finds you well. I wanted to share some thoughts about our friendship.', 'public', TRUE, TRUE),
+('David', 'Mom', 'Dear Mom, Thank you for always believing in me. You are my hero.', 'public', TRUE, TRUE),
+('Secret Writer', 'World', 'To anyone reading this, remember that every sunset brings a new dawn.', 'anonymous', FALSE, TRUE);
+
+INSERT INTO letters (from_name, to_name, letter_content, letter_type, from_birthday, to_birthday, show_from_name, show_to_name) VALUES
+('Alex', 'Jamie', 'My private letter with special memories only we understand.', 'private', '1995-03-15', '1994-07-22', TRUE, TRUE);
+
+INSERT INTO letters (from_name, to_name, letter_content, letter_type, from_birthday, to_birthday, security_question, security_answer, show_from_name, show_to_name) VALUES
+('Michael', 'Emma', 'Our encrypted letter with precious memories from our favorite coffee shop.', 'encrypted', '1993-08-20', '1995-12-10', 'What was the name of our favorite coffee shop?', 'central perk', TRUE, TRUE);

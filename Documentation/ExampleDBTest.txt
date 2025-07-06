@@ -1,0 +1,14 @@
+🔑 Test Credentials:
+Private Letter:
+
+From: Alex → To: Jamie
+Sender Birthday: 1995-03-15
+Recipient Birthday: 1994-07-22
+
+Encrypted Letter:
+
+From: Michael → To: Emma
+Sender Birthday: 1993-08-20
+Recipient Birthday: 1995-12-10
+Security Question: "What was the name of our favorite coffee shop where we had our first date?"
+Security Answer: "central perk"
