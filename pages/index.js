@@ -1,6 +1,7 @@
 // pages/index.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import Head from "next/head";
+
 import {
   FiEdit3,
   FiBook,
@@ -25,6 +26,10 @@ export default function Graveletters() {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchType, setSearchType] = useState("both");
   const [loading, setLoading] = useState(false);
+
+  // Refs for DOM elements
+  const textareaRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // Pagination states
   const [pagination, setPagination] = useState({
@@ -128,7 +133,7 @@ export default function Graveletters() {
     }
   };
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = useCallback((newPage) => {
     if (newPage < 1 || newPage > pagination.totalPages) return;
 
     const searchParams = {};
@@ -138,9 +143,9 @@ export default function Graveletters() {
     }
 
     loadLetters(newPage, searchParams);
-  };
+  }, [pagination.totalPages, searchTerm, searchType]);
 
-  const handleSubmitLetter = async () => {
+  const handleSubmitLetter = useCallback(async () => {
     if (!letterForm.fromName || !letterForm.toName || !letterForm.content) {
       alert("Please fill in all required fields");
       return;
@@ -203,9 +208,9 @@ export default function Graveletters() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [letterForm]);
 
-  const handleSearch = async (page = 1) => {
+  const handleSearch = useCallback(async (page = 1) => {
     try {
       const params = new URLSearchParams({
         search: searchTerm,
@@ -221,9 +226,9 @@ export default function Graveletters() {
     } catch (error) {
       console.error("Error searching letters:", error);
     }
-  };
+  }, [searchTerm, searchType, pagination.limit]);
 
-  const handlePrivateLetterSearch = async () => {
+  const handlePrivateLetterSearch = useCallback(async () => {
     try {
       const params = new URLSearchParams({
         type: "private",
@@ -261,9 +266,9 @@ export default function Graveletters() {
       console.error("Error finding private letters:", error);
       alert("Error searching for private letters.");
     }
-  };
+  }, [privateForm]);
 
-  const handlePrivateLetterView = async (letterId) => {
+  const handlePrivateLetterView = useCallback(async (letterId) => {
     try {
       const params = new URLSearchParams({
         type: "private",
@@ -289,9 +294,9 @@ export default function Graveletters() {
       console.error("Error loading private letter:", error);
       alert("Error loading private letter.");
     }
-  };
+  }, [privateForm]);
 
-  const handleEncryptedLetterStep1 = async () => {
+  const handleEncryptedLetterStep1 = useCallback(async () => {
     try {
       const params = new URLSearchParams({
         type: "encrypted",
@@ -320,9 +325,9 @@ export default function Graveletters() {
       console.error("Error finding encrypted letters:", error);
       alert("Error searching for encrypted letters.");
     }
-  };
+  }, [encryptedForm]);
 
-  const handleEncryptedLetterStep2 = async (letterId, securityAnswer) => {
+  const handleEncryptedLetterStep2 = useCallback(async (letterId, securityAnswer) => {
     try {
       const params = new URLSearchParams({
         type: "encrypted",
@@ -349,34 +354,78 @@ export default function Graveletters() {
       console.error("Error unlocking encrypted letter:", error);
       alert("Error unlocking encrypted letter.");
     }
-  };
+  }, [encryptedForm]);
 
-  const formatDate = (dateString) => {
+  // Memoized tab click handler
+  const handleTabClick = useCallback((tabKey) => {
+    if (tabKey === "host") {
+      window.open(
+        "https://github.com/BlesslinJerishR/OpenSource-GraveLetters",
+        "_blank"
+      );
+    } else {
+      setActiveTab(tabKey);
+    }
+  }, []);
+
+  // Memoized form handlers
+  const handleLetterFormChange = useCallback((field, value) => {
+    setLetterForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handlePrivateFormChange = useCallback((field, value) => {
+    setPrivateForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleEncryptedFormChange = useCallback((field, value) => {
+    setEncryptedForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+
+
+  const formatDate = useCallback((dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
-  };
+  }, []);
 
-  const PaginationControls = ({ onPageChange, pagination }) => {
+  const PaginationControls = memo(({ onPageChange, pagination }) => {
     if (pagination.totalPages <= 1) return null;
 
     const { currentPage, totalPages } = pagination;
-    const pages = [];
 
-    // Calculate which pages to show
+    const pages = useMemo(() => {
+      const result = [];
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, currentPage + 2);
+
+      for (let i = startPage; i <= endPage; i++) {
+        result.push(i);
+      }
+      return result;
+    }, [currentPage, totalPages]);
+
+    const handlePrevious = useCallback(() => {
+      onPageChange(currentPage - 1);
+    }, [onPageChange, currentPage]);
+
+    const handleNext = useCallback(() => {
+      onPageChange(currentPage + 1);
+    }, [onPageChange, currentPage]);
+
+    const handlePageClick = useCallback((page) => {
+      onPageChange(page);
+    }, [onPageChange]);
+
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(totalPages, currentPage + 2);
-
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
 
     return (
       <div style={styles.paginationContainer}>
         <button
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={handlePrevious}
           disabled={currentPage === 1}
           style={{
             ...styles.paginationButton,
@@ -391,7 +440,7 @@ export default function Graveletters() {
         <div style={styles.pageNumbers}>
           {startPage > 1 && (
             <>
-              <button onClick={() => onPageChange(1)} style={styles.pageButton}>
+              <button onClick={() => handlePageClick(1)} style={styles.pageButton}>
                 1
               </button>
               {startPage > 2 && <span style={styles.ellipsis}>...</span>}
@@ -401,7 +450,7 @@ export default function Graveletters() {
           {pages.map((page) => (
             <button
               key={page}
-              onClick={() => onPageChange(page)}
+              onClick={() => handlePageClick(page)}
               style={{
                 ...styles.pageButton,
                 ...(page === currentPage ? styles.pageButtonActive : {}),
@@ -417,7 +466,7 @@ export default function Graveletters() {
                 <span style={styles.ellipsis}>...</span>
               )}
               <button
-                onClick={() => onPageChange(totalPages)}
+                onClick={() => handlePageClick(totalPages)}
                 style={styles.pageButton}
               >
                 {totalPages}
@@ -427,7 +476,7 @@ export default function Graveletters() {
         </div>
 
         <button
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={handleNext}
           disabled={currentPage === totalPages}
           style={{
             ...styles.paginationButton,
@@ -440,26 +489,26 @@ export default function Graveletters() {
         </button>
       </div>
     );
-  };
+  });
 
-  const LetterSelectionList = ({ letters, type, onSelect, onUnlock }) => {
+  const LetterSelectionList = memo(({ letters, type, onSelect, onUnlock }) => {
     const [securityAnswers, setSecurityAnswers] = useState({});
 
-    const handleSecurityAnswerChange = (letterId, value) => {
+    const handleSecurityAnswerChange = useCallback((letterId, value) => {
       setSecurityAnswers((prev) => ({
         ...prev,
         [letterId]: value,
       }));
-    };
+    }, []);
 
-    const handleUnlock = (letterId) => {
+    const handleUnlock = useCallback((letterId) => {
       const answer = securityAnswers[letterId] || "";
       if (answer.trim()) {
         onUnlock(letterId, answer.trim());
       } else {
         alert("Please enter an answer before unlocking.");
       }
-    };
+    }, [securityAnswers, onUnlock]);
 
     return (
       <div style={styles.letterSelectionContainer}>
@@ -535,9 +584,11 @@ export default function Graveletters() {
         ))}
       </div>
     );
-  };
+  });
 
-  const styles = {
+
+
+  const styles = useMemo(() => ({
     container: {
       minHeight: "100vh",
       background:
@@ -634,6 +685,30 @@ export default function Graveletters() {
     inputGroup: {
       marginBottom: "20px",
     },
+    birthdayRow: {
+      display: "flex",
+      gap: "15px",
+      marginBottom: "20px",
+      flexWrap: "wrap",
+    },
+    birthdayInputGroup: {
+      flex: "1",
+      minWidth: "250px",
+    },
+    birthdayRow: {
+      display: "flex",
+      gap: "15px",
+      marginBottom: "20px",
+      flexWrap: "wrap",
+    },
+    birthdayInputGroup: {
+      flex: "1",
+      minWidth: "250px",
+    },
+    datePickerWrapper: {
+      position: "relative",
+      width: "100%",
+    },
     label: {
       display: "block",
       marginBottom: "10px",
@@ -650,6 +725,30 @@ export default function Graveletters() {
       boxSizing: "border-box",
       boxShadow: "3px 3px 0 #000000",
       transition: "all 0.2s ease",
+    },
+    senderBirthdayInput: {
+      width: "100%",
+      padding: "12px",
+      border: "2px solid #000000",
+      backgroundColor: "#ffffff",
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      boxSizing: "border-box",
+      boxShadow: "3px 3px 0 #000000",
+      transition: "all 0.2s ease",
+      transform: "scaleX(1.7)",
+      transformOrigin: "left center"
+    },
+    recipientBirthdayInput: {
+      width: "100%",
+      padding: "12px",
+      border: "2px solid #000000",
+      backgroundColor: "#ffffff",
+      fontSize: "clamp(0.9rem, 1.5vw, 1rem)",
+      boxSizing: "border-box",
+      boxShadow: "3px 3px 0 #000000",
+      transition: "all 0.2s ease",
+      transform: "translateX(-50%) scaleX(2.0)",
+      transformOrigin: "left center"
     },
     inputFocus: {
       transform: "translate(-1px, -1px)",
@@ -677,8 +776,8 @@ export default function Graveletters() {
       resize: "vertical",
       boxShadow: "4px 4px 0 #000000",
       backgroundImage: `
-        linear-gradient(90deg, transparent 79px, #e0e0e0 79px, #e0e0e0 81px, transparent 81px),
-        linear-gradient(#f8f8f8 0.1em, transparent 0.1em)
+        linear-gradient(90deg, transparent 79px, #d0d0d0 79px, #d0d0d0 82px, transparent 82px),
+        linear-gradient(#f0f0f0 0.1em, transparent 0.1em)
       `,
       backgroundSize: "100% 1.5em",
       transition: "all 0.2s ease",
@@ -727,8 +826,8 @@ export default function Graveletters() {
       boxShadow: "8px 8px 0 #000000",
       position: "relative",
       backgroundImage: `
-        linear-gradient(90deg, transparent 79px, #e8e8e8 79px, #e8e8e8 80px, transparent 80px),
-        linear-gradient(#f9f9f9 0.1em, transparent 0.1em)
+        linear-gradient(90deg, transparent 79px, #d8d8d8 79px, #d8d8d8 82px, transparent 82px),
+        linear-gradient(#f2f2f2 0.1em, transparent 0.1em)
       `,
       backgroundSize: "100% 1.8em",
     },
@@ -988,27 +1087,79 @@ export default function Graveletters() {
       justifyContent: "center",
       gap: "8px",
     },
-  };
+  }), []);
 
   return (
     <>
       <Head>
-        <title>Graveletters - Send letters that last forever</title>
+        <title>Graveletters - Send letters that last forever | blessl.in</title>
         <meta
           name="description"
-          content="Send anonymous, public, private, or encrypted letters that last forever"
+          content="Graveletters by blessl.in - Send anonymous, public, private, or encrypted letters that last forever. Share your thoughts, memories, and messages with the world or keep them private. Free letter writing platform hosted at graveletters.blessl.in"
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {/* SEO Keywords */}
+        <meta name="keywords" content="graveletters, blessl.in, letters, anonymous letters, private letters, encrypted letters, message platform, letter writing, digital letters, forever letters, grave letters" />
+        <meta name="author" content="blessl.in" />
+        <meta name="robots" content="index, follow" />
+        <meta name="language" content="English" />
+
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://graveletters.blessl.in/" />
+        <meta property="og:title" content="Graveletters - Send letters that last forever | blessl.in" />
+        <meta property="og:description" content="Send anonymous, public, private, or encrypted letters that last forever. A unique letter writing platform by blessl.in" />
+        <meta property="og:image" content="https://img.icons8.com/3d-fluency/100/grave.png" />
+        <meta property="og:site_name" content="Graveletters by blessl.in" />
+
+        {/* Twitter */}
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:url" content="https://graveletters.blessl.in/" />
+        <meta property="twitter:title" content="Graveletters - Send letters that last forever | blessl.in" />
+        <meta property="twitter:description" content="Send anonymous, public, private, or encrypted letters that last forever. A unique letter writing platform by blessl.in" />
+        <meta property="twitter:image" content="https://img.icons8.com/3d-fluency/100/grave.png" />
+
+        {/* Additional SEO */}
+        <meta name="theme-color" content="#000000" />
+        <meta name="msapplication-TileColor" content="#000000" />
+        <link rel="canonical" href="https://graveletters.blessl.in/" />
+
+        {/* Structured Data */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Graveletters",
+            "description": "Send anonymous, public, private, or encrypted letters that last forever",
+            "url": "https://graveletters.blessl.in/",
+            "applicationCategory": "CommunicationApplication",
+            "operatingSystem": "Web Browser",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "creator": {
+              "@type": "Organization",
+              "name": "blessl.in",
+              "url": "https://blessl.in"
+            }
+          })}
+        </script>
+
         <link
           rel="icon"
           href="https://img.icons8.com/3d-fluency/100/grave.png"
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin />
         <link
           href="https://fonts.googleapis.com/css2?family=Libertinus+Mono&display=swap"
           rel="stylesheet"
         />
+
+
       </Head>
 
       <div style={styles.container}>
@@ -1026,32 +1177,23 @@ export default function Graveletters() {
         </header>
 
         <nav style={styles.nav}>
-          {[
+          {useMemo(() => [
             { key: "read", label: "Read Letters", icon: FiBook },
             { key: "write", label: "Write Letter.", icon: FiEdit3 },
             { key: "private", label: "Private Letters", icon: FiLock },
             { key: "encrypted", label: "Encrypted Letters", icon: FiShield },
             { key: "host", label: "Self Host > Open Source", icon: FiGithub },
-          ].map((tab) => {
+          ], []).map((tab) => {
             const IconComponent = tab.icon;
             return (
               <button
                 key={tab.key}
-                onClick={() => {
-                  if (tab.key === "host") {
-                    window.open(
-                      "https://github.com/BlesslinJerishR/OpenSource-GraveLetters",
-                      "_blank"
-                    );
-                  } else {
-                    setActiveTab(tab.key);
-                  }
-                }}
+                onClick={() => handleTabClick(tab.key)}
                 style={{
                   ...styles.navButton,
                   backgroundColor:
                     tab.key === "host"
-                      ? "#00FF00"
+                      ? "#00FF7F"
                       : activeTab === tab.key
                       ? "#000000"
                       : "#ffffff",
@@ -1061,7 +1203,8 @@ export default function Graveletters() {
                       : activeTab === tab.key
                       ? "#ffffff"
                       : "#000000",
-                  boxShadow: tab.key === "host" ? "0 3px 0 #00CC00" : undefined,
+                  boxShadow:
+                    tab.key === "host" ? "0 3px 0 #00FF7F" : undefined,
                 }}
               >
                 <IconComponent size={16} />
@@ -1195,8 +1338,8 @@ export default function Graveletters() {
 
                 {(letterForm.type === "private" ||
                   letterForm.type === "encrypted") && (
-                  <>
-                    <div style={styles.inputGroup}>
+                  <div style={styles.birthdayRow}>
+                    <div style={styles.birthdayInputGroup}>
                       <label style={styles.label}>Sender's Birthday:</label>
                       <input
                         type="date"
@@ -1219,7 +1362,7 @@ export default function Graveletters() {
                         required
                       />
                     </div>
-                    <div style={styles.inputGroup}>
+                    <div style={styles.birthdayInputGroup}>
                       <label style={styles.label}>Recipient's Birthday:</label>
                       <input
                         type="date"
@@ -1242,7 +1385,7 @@ export default function Graveletters() {
                         required
                       />
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {letterForm.type === "encrypted" && (
@@ -1551,50 +1694,52 @@ export default function Graveletters() {
                   />
                 </div>
 
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Sender's Birthday:</label>
-                  <input
-                    type="date"
-                    value={privateForm.fromBirthday}
-                    onChange={(e) =>
-                      setPrivateForm({
-                        ...privateForm,
-                        fromBirthday: e.target.value,
-                      })
-                    }
-                    style={styles.input}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = "translate(-1px, -1px)";
-                      e.target.style.boxShadow = "4px 4px 0 #000000";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = "translate(0, 0)";
-                      e.target.style.boxShadow = "3px 3px 0 #000000";
-                    }}
-                  />
-                </div>
+                <div style={styles.birthdayRow}>
+                  <div style={styles.birthdayInputGroup}>
+                    <label style={styles.label}>Sender's Birthday:</label>
+                    <input
+                      type="date"
+                      value={privateForm.fromBirthday}
+                      onChange={(e) =>
+                        setPrivateForm({
+                          ...privateForm,
+                          fromBirthday: e.target.value,
+                        })
+                      }
+                      style={styles.input}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = "translate(-1px, -1px)";
+                        e.target.style.boxShadow = "4px 4px 0 #000000";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = "translate(0, 0)";
+                        e.target.style.boxShadow = "3px 3px 0 #000000";
+                      }}
+                    />
+                  </div>
 
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Recipient's Birthday:</label>
-                  <input
-                    type="date"
-                    value={privateForm.toBirthday}
-                    onChange={(e) =>
-                      setPrivateForm({
-                        ...privateForm,
-                        toBirthday: e.target.value,
-                      })
-                    }
-                    style={styles.input}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = "translate(-1px, -1px)";
-                      e.target.style.boxShadow = "4px 4px 0 #000000";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = "translate(0, 0)";
-                      e.target.style.boxShadow = "3px 3px 0 #000000";
-                    }}
-                  />
+                  <div style={styles.birthdayInputGroup}>
+                    <label style={styles.label}>Recipient's Birthday:</label>
+                    <input
+                      type="date"
+                      value={privateForm.toBirthday}
+                      onChange={(e) =>
+                        setPrivateForm({
+                          ...privateForm,
+                          toBirthday: e.target.value,
+                        })
+                      }
+                      style={styles.input}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = "translate(-1px, -1px)";
+                        e.target.style.boxShadow = "4px 4px 0 #000000";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = "translate(0, 0)";
+                        e.target.style.boxShadow = "3px 3px 0 #000000";
+                      }}
+                    />
+                  </div>
                 </div>
 
                 <button
@@ -1712,50 +1857,52 @@ export default function Graveletters() {
                   />
                 </div>
 
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Sender's Birthday:</label>
-                  <input
-                    type="date"
-                    value={encryptedForm.fromBirthday}
-                    onChange={(e) =>
-                      setEncryptedForm({
-                        ...encryptedForm,
-                        fromBirthday: e.target.value,
-                      })
-                    }
-                    style={styles.input}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = "translate(-1px, -1px)";
-                      e.target.style.boxShadow = "4px 4px 0 #000000";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = "translate(0, 0)";
-                      e.target.style.boxShadow = "3px 3px 0 #000000";
-                    }}
-                  />
-                </div>
+                <div style={styles.birthdayRow}>
+                  <div style={styles.birthdayInputGroup}>
+                    <label style={styles.label}>Sender's Birthday:</label>
+                    <input
+                      type="date"
+                      value={encryptedForm.fromBirthday}
+                      onChange={(e) =>
+                        setEncryptedForm({
+                          ...encryptedForm,
+                          fromBirthday: e.target.value,
+                        })
+                      }
+                      style={styles.input}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = "translate(-1px, -1px)";
+                        e.target.style.boxShadow = "4px 4px 0 #000000";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = "translate(0, 0)";
+                        e.target.style.boxShadow = "3px 3px 0 #000000";
+                      }}
+                    />
+                  </div>
 
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Recipient's Birthday:</label>
-                  <input
-                    type="date"
-                    value={encryptedForm.toBirthday}
-                    onChange={(e) =>
-                      setEncryptedForm({
-                        ...encryptedForm,
-                        toBirthday: e.target.value,
-                      })
-                    }
-                    style={styles.input}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = "translate(-1px, -1px)";
-                      e.target.style.boxShadow = "4px 4px 0 #000000";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = "translate(0, 0)";
-                      e.target.style.boxShadow = "3px 3px 0 #000000";
-                    }}
-                  />
+                  <div style={styles.birthdayInputGroup}>
+                    <label style={styles.label}>Recipient's Birthday:</label>
+                    <input
+                      type="date"
+                      value={encryptedForm.toBirthday}
+                      onChange={(e) =>
+                        setEncryptedForm({
+                          ...encryptedForm,
+                          toBirthday: e.target.value,
+                        })
+                      }
+                      style={styles.input}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = "translate(-1px, -1px)";
+                        e.target.style.boxShadow = "4px 4px 0 #000000";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = "translate(0, 0)";
+                        e.target.style.boxShadow = "3px 3px 0 #000000";
+                      }}
+                    />
+                  </div>
                 </div>
 
                 {!showSecurityQuestion && (

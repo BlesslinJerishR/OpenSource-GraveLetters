@@ -1,5 +1,6 @@
 -- GRAVELETTERS DATABASE - CLEAN SINGLE SETUP
 -- Copy ONLY this code below and paste in phpMyAdmin
+-- Enter your Database name
 
 USE DATABASE_NAME;
 
