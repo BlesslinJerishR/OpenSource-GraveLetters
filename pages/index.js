@@ -1100,7 +1100,10 @@ export default function Graveletters() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
 
         {/* SEO Keywords */}
-        <meta name="keywords" content="graveletters, blessl.in, letters, anonymous letters, private letters, encrypted letters, message platform, letter writing, digital letters, forever letters, grave letters" />
+        <meta
+          name="keywords"
+          content="graveletters, blessl.in, letters, anonymous letters, private letters, encrypted letters, message platform, letter writing, digital letters, forever letters, grave letters"
+        />
         <meta name="author" content="blessl.in" />
         <meta name="robots" content="index, follow" />
         <meta name="language" content="English" />
@@ -1108,17 +1111,38 @@ export default function Graveletters() {
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://graveletters.blessl.in/" />
-        <meta property="og:title" content="Graveletters - Send letters that last forever | blessl.in" />
-        <meta property="og:description" content="Send anonymous, public, private, or encrypted letters that last forever. A unique letter writing platform by blessl.in" />
-        <meta property="og:image" content="https://img.icons8.com/3d-fluency/100/grave.png" />
+        <meta
+          property="og:title"
+          content="Graveletters - Send letters that last forever | blessl.in"
+        />
+        <meta
+          property="og:description"
+          content="Send anonymous, public, private, or encrypted letters that last forever. A unique letter writing platform by blessl.in"
+        />
+        <meta
+          property="og:image"
+          content="https://img.icons8.com/3d-fluency/100/grave.png"
+        />
         <meta property="og:site_name" content="Graveletters by blessl.in" />
 
         {/* Twitter */}
         <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content="https://graveletters.blessl.in/" />
-        <meta property="twitter:title" content="Graveletters - Send letters that last forever | blessl.in" />
-        <meta property="twitter:description" content="Send anonymous, public, private, or encrypted letters that last forever. A unique letter writing platform by blessl.in" />
-        <meta property="twitter:image" content="https://img.icons8.com/3d-fluency/100/grave.png" />
+        <meta
+          property="twitter:url"
+          content="https://graveletters.blessl.in/"
+        />
+        <meta
+          property="twitter:title"
+          content="Graveletters - Send letters that last forever | blessl.in"
+        />
+        <meta
+          property="twitter:description"
+          content="Send anonymous, public, private, or encrypted letters that last forever. A unique letter writing platform by blessl.in"
+        />
+        <meta
+          property="twitter:image"
+          content="https://img.icons8.com/3d-fluency/100/grave.png"
+        />
 
         {/* Additional SEO */}
         <meta name="theme-color" content="#000000" />
@@ -1130,21 +1154,22 @@ export default function Graveletters() {
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebApplication",
-            "name": "Graveletters",
-            "description": "Send anonymous, public, private, or encrypted letters that last forever",
-            "url": "https://graveletters.blessl.in/",
-            "applicationCategory": "CommunicationApplication",
-            "operatingSystem": "Web Browser",
-            "offers": {
+            name: "Graveletters",
+            description:
+              "Send anonymous, public, private, or encrypted letters that last forever",
+            url: "https://graveletters.blessl.in/",
+            applicationCategory: "CommunicationApplication",
+            operatingSystem: "Web Browser",
+            offers: {
               "@type": "Offer",
-              "price": "0",
-              "priceCurrency": "USD"
+              price: "0",
+              priceCurrency: "USD",
             },
-            "creator": {
+            creator: {
               "@type": "Organization",
-              "name": "blessl.in",
-              "url": "https://blessl.in"
-            }
+              name: "blessl.in",
+              url: "https://blessl.in",
+            },
           })}
         </script>
 
@@ -1158,8 +1183,6 @@ export default function Graveletters() {
           href="https://fonts.googleapis.com/css2?family=Libertinus+Mono&display=swap"
           rel="stylesheet"
         />
-
-
       </Head>
 
       <div style={styles.container}>
@@ -1177,13 +1200,16 @@ export default function Graveletters() {
         </header>
 
         <nav style={styles.nav}>
-          {useMemo(() => [
-            { key: "read", label: "Read Letters", icon: FiBook },
-            { key: "write", label: "Write Letter.", icon: FiEdit3 },
-            { key: "private", label: "Private Letters", icon: FiLock },
-            { key: "encrypted", label: "Encrypted Letters", icon: FiShield },
-            { key: "host", label: "Self Host > Open Source", icon: FiGithub },
-          ], []).map((tab) => {
+          {useMemo(
+            () => [
+              { key: "read", label: "Read Letters", icon: FiBook },
+              { key: "write", label: "Write Letter.", icon: FiEdit3 },
+              { key: "private", label: "Private Letters", icon: FiLock },
+              { key: "encrypted", label: "Encrypted Letters", icon: FiShield },
+              { key: "host", label: "Self Host > Open Source", icon: FiGithub },
+            ],
+            []
+          ).map((tab) => {
             const IconComponent = tab.icon;
             return (
               <button
@@ -1203,8 +1229,7 @@ export default function Graveletters() {
                       : activeTab === tab.key
                       ? "#ffffff"
                       : "#000000",
-                  boxShadow:
-                    tab.key === "host" ? "0 3px 0 #00FF7F" : undefined,
+                  boxShadow: tab.key === "host" ? "0 3px 0 #00FF7F" : undefined,
                 }}
               >
                 <IconComponent size={16} />
@@ -1992,6 +2017,9 @@ export default function Graveletters() {
         <footer style={styles.footer}>
           <p style={{ margin: "0", fontSize: "clamp(0.8rem, 1.2vw, 0.9rem)" }}>
             © 2025 Graveletters - Letters that last forever <br />
+              OpenSource -  {" "}
+              <img src="/tvk.jpg" height="20px" alt="tvk" style={{ verticalAlign: "middle", borderRadius: 4 }} />
+            <br />
             Made with 🖤 by{" "}
             <strong>
               <a
