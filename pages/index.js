@@ -2017,7 +2017,7 @@ export default function Graveletters() {
         <footer style={styles.footer}>
           <p style={{ margin: "0", fontSize: "clamp(0.8rem, 1.2vw, 0.9rem)" }}>
             © 2025 Graveletters - Letters that last forever <br />
-              OpenSource - பிறப்பொக்கும் எல்லா உயிர்க்கும்{" "}
+              பிறப்பொக்கும் எல்லா உயிர்க்கும்{" "}
               <img src="/tvk.jpg" height="20px" alt="tvk" style={{ verticalAlign: "middle", borderRadius: 4 }} />
             <br />
             Made with 🖤 by{" "}
